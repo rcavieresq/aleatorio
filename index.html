@@ -37,11 +37,83 @@
       background: var(--bg);
     }
 
-    #topbar-left {
+/* ── CONFIGURACIÓN DEL CONTENEDOR PRINCIPAL (TOPBAR-LEFT) ── */
+	#topbar-left {
       font-size: 13px;
       letter-spacing: 0.01em;
       color: var(--ink);
+      position: relative;
+      display: inline-flex;  /* Cambiado a inline-flex para ceñirse exactamente al texto */
       opacity: 0.45;
+      transition: opacity 0.2s ease;
+    }
+
+    /* Contenedor del menú desplegable */
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;               /* Se alinea exactamente con el borde izquierdo del texto */
+      background-color: var(--bg);
+      min-width: 240px;
+      box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.06);
+      border: 1px solid #eee;
+      z-index: 1000;
+      padding: 6px 0;
+      margin-top: 0;         /* Pegado al texto para evitar zonas muertas donde se cierra */
+    }
+
+    /* Enlaces internos del menú */
+    .dropdown-content a {
+      color: var(--ink);
+      padding: 10px 16px;
+      text-decoration: none;
+      display: block;
+      font-size: 13px;
+      letter-spacing: 0.03em;
+      text-align: left;
+      transition: background 0.15s ease;
+      opacity: 1;          /* Mantiene la estética sutil original */
+    }
+
+    /* Comportamiento al pasar el cursor sobre las opciones */
+    .dropdown-content a:hover {
+      background-color: #f5f5f5;
+      color: var(--accent);
+      opacity: 1;
+    }
+
+    /* Muestra el menú cuando el mouse se posiciona sobre cualquier parte de #topbar-left */
+	#topbar-left:hover {
+      opacity: 0.9;
+    }
+	
+	.dropdown-content {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;               
+      background-color: var(--bg);
+      width: 240px;          /* Cambiado de min-width a width fijo */
+      box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.06);
+      border: 1px solid #eee;
+      z-index: 1000;
+      padding: 6px 0;
+      margin-top: -2px;      /* Sube ligeramente para eliminar cualquier milímetro de aire */
+      pointer-events: auto;  /* Asegura interacción interna autónoma */
+    }
+	
+    /* Pequeño indicador de flecha discreto */
+    .dropdown-trigger::after {
+      content: ' ▾';
+      font-size: 10px;
+      opacity: 1;
+      vertical-align: middle;
+    }
+	
+	.dropdown-trigger:hover + .dropdown-content,
+    .dropdown-content:hover {
+      display: block;
     }
 
     #topbar-nav {
@@ -231,8 +303,15 @@
 </head>
 <body>
 
-  <div id="topbar">
-    <div id="topbar-left">Suspención aleatoria</div>
+<div id="topbar">
+    <div id="topbar-left">
+      <span class="dropdown-trigger">Suspención Aleatoria H-V</span>
+      <div class="dropdown-content">
+        <a href="index.html">Suspención Aleatoria H-V</a>
+        <a href="index2.html">Suspención Aleatoria Mix</a>
+        <a href="index3.html">Suspención Aleatoria Auto</a>
+      </div>
+    </div>
     <div></div>
     <nav id="topbar-nav">
       <button class="mode-btn active" id="btn-vertical">Vertical</button>
