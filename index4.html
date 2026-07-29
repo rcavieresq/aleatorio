@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Suspención aleatoria - Multi</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --ink: #111;
+      --accent: #e8305a;
+      --margin: 4vw;
+      --topbar-h: 48px;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── TOP BAR ── */
+    #topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--topbar-h);
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 0 var(--margin);
+      z-index: 100;
+      background: var(--bg);
+    }
+
+    #topbar-left {
+      font-size: 13px;
+      letter-spacing: 0.01em;
+      color: var(--ink);
+      position: relative;
+      display: inline-flex;
+      opacity: 0.45;
+      transition: opacity 0.2s ease;
+    }
+
+    #topbar-left:hover { opacity: 0.9; }
+
+    .dropdown-trigger {
+      cursor: pointer;
+      white-space: nowrap;
+      padding: 10px 0;
+    }
+    .dropdown-trigger::after {
+      content: ' ▾';
+      font-size: 10px;
+      opacity: 1;
+      vertical-align: middle;
+    }
+
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;               
+      background-color: var(--bg);
+      width: 240px;
+      box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.06);
+      border: 1px solid #eee;
+      z-index: 1000;
+      padding: 6px 0;
+      margin-top: -2px;
+      pointer-events: auto;
+    }
+
+    .dropdown-content a {
+      color: var(--ink);
+      padding: 10px 16px;
+      text-decoration: none;
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      text-align: left;
+      transition: background 0.15s ease;
+      opacity: 0.6;
+    }
+    .dropdown-content a:hover {
+      background-color: #f5f5f5;
+      color: var(--accent);
+      opacity: 1;
+    }
+
+    .dropdown-trigger:hover + .dropdown-content,
+    .dropdown-content:hover {
+      display: block;
+    }
+
+    /* ── CONTROLES Y NAVEGACIÓN ── */
+    #topbar-nav {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      justify-content: flex-end;
+    }
+
+    .nav-btn {
+      background: none;
+      border: none;
+      font-family: inherit;
+      font-size: 13px;
+      letter-spacing: 0.01em;
+      color: var(--ink);
+      cursor: pointer;
+      padding: 0;
+      opacity: 0.4;
+      transition: opacity 0.15s;
+    }
+    .nav-btn:hover { opacity: 0.8; }
+    .nav-btn.active { opacity: 1; color: var(--accent); }
+
+    .sep { font-size: 12px; opacity: 0.2; pointer-events: none; }
+
+    .config-ui {
+      background: none;
+      border: none;
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--ink);
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      opacity: 0.4;
+      transition: opacity 0.15s;
+    }
+    .config-ui:hover, .config-ui:focus { opacity: 1; }
+    
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; width: 22px; text-align: center; border-bottom: 1px dashed rgba(0,0,0,0.3); border-radius: 0; }
+
+    /* ── CANVAS Y STAGE ── */
+    #canvas {
+      position: fixed;
+      top: var(--topbar-h);
+      left: 0; right: 0; bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: crosshair;
+    }
+
+    #empty-state {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      text-align: center;
+      padding: var(--margin);
+      transition: opacity 0.3s;
+    }
+    #empty-state.visible { display: flex; opacity: 1; pointer-events: all; }
+    #empty-state p { font-size: 13px; color: var(--ink); opacity: 0.4; line-height: 1.6; max-width: 320px; }
+    
+    #empty-upload-btn {
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--ink);
+      background: none;
+      border: 1px solid rgba(0,0,0,0.15);
+      padding: 8px 20px;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: border-color 0.15s, opacity 0.15s;
+      opacity: 0.6;
+    }
+    #empty-upload-btn:hover { opacity: 1; border-color: rgba(0,0,0,0.4); }
+
+    #stage {
+      display: flex;
+      gap: 4px;
+    }
+
+    .slot {
+      overflow: hidden;
+      position: relative;
+      flex: none;
+      min-width: 0; min-height: 0;
+      background: #ebebeb;
+    }
+    .slot img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+      cursor: zoom-in;
+      transition: opacity 0.4s ease;
+    }
+    .slot img.fading { opacity: 0; }
+
+    /* ── UI EXTRAS ── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(12px);
+      background: var(--ink);
+      color: #fff;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      padding: 8px 18px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s, transform 0.25s;
+      white-space: nowrap;
+      z-index: 400;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    #lightbox {
+      position: fixed; inset: 0;
+      z-index: 300;
+      background: rgba(255,255,255,0.96);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s ease;
+      cursor: zoom-out;
+    }
+    #lightbox.open { opacity: 1; pointer-events: all; }
+    #lightbox img {
+      max-width: 90vw; max-height: 90vh;
+      object-fit: contain; display: block; cursor: default;
+      transform: scale(0.98); opacity: 0;
+      transition: transform 0.3s cubic-bezier(0.16,1,0.3,1), opacity 0.3s ease;
+    }
+    #lightbox.open img { transform: scale(1); opacity: 1; }
+
+    #textmodal {
+      position: fixed; inset: 0;
+      z-index: 300;
+      background: rgba(255,255,255,0.96);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s ease;
+      cursor: zoom-out;
+    }
+    #textmodal.open { opacity: 1; pointer-events: all; }
+    #textmodal-content {
+      font-size: clamp(14px, 2vw, 20px);
+      color: var(--ink);
+      text-align: center;
+      max-width: 800px;
+      line-height: 1.6;
+      letter-spacing: 0.01em;
+      opacity: 0.75;
+      padding: 0 var(--margin);
+    }
+    #upload-count { font-size: 11px; opacity: 0.35; margin-left: 2px; }
+  </style>
+</head>
+<body>
+
+  <div id="topbar">
+    <div id="topbar-left">
+      <span class="dropdown-trigger">Suspención Aleatoria Multi</span>
+      <div class="dropdown-content">
+        <a href="index.html">Suspención Aleatoria H-V</a>
+        <a href="index2.html">Suspención Aleatoria Mix</a>
+        <a href="index3.html">Suspención Aleatoria Auto</a>
+        <a href="index4.html">Suspención Aleatoria Multi</a>
+      </div>
+    </div>
+    <div></div>
+    
+    <nav id="topbar-nav">
+      <select id="config-slots" class="config-ui" title="Imágenes simultáneas">
+        <option value="1">1 slot</option>
+        <option value="2">2 slots</option>
+        <option value="3">3 slots</option>
+        <option value="4" selected>4 slots</option>
+        <option value="5">5 slots</option>
+        <option value="6">6 slots</option>
+        <option value="7">7 slots</option>
+        <option value="8">8 slots</option>
+        <option value="9">9 slots</option>
+        <option value="10">10 slots</option>
+      </select>
+      <span class="sep">/</span>
+      
+      <div style="display:flex; align-items:center; gap:2px;" title="Segundos entre transiciones">
+        <input type="number" id="config-time" class="config-ui" value="10" min="1" max="99">
+        <span style="font-size:11px; opacity:0.3; pointer-events:none;">s</span>
+      </div>
+      <span class="sep">/</span>
+
+      <button class="nav-btn" id="btn-texto">Texto</button>
+      <span class="sep">/</span>
+      <button class="nav-btn" id="btn-upload">↑<span id="upload-count"></span></button>
+      <span class="sep">/</span>
+      <button class="nav-btn" id="btn-download">↓</button>
+    </nav>
+  </div>
+
+  <input type="file" id="file-input" accept="image/*" multiple style="display:none" />
+
+  <div id="canvas">
+    <div id="empty-state" class="visible">
+      <p>Sube tus imágenes para comenzar.<br>El algoritmo curará la selección dinámicamente.</p>
+      <button id="empty-upload-btn">Subir imágenes</button>
+    </div>
+
+    <div id="stage" style="display:none"></div>
+  </div>
+
+  <div id="lightbox"><img id="lightbox-img" src="" alt="" /></div>
+  <div id="textmodal">
+    <p id="textmodal-content">
+      Que el azar defina la relación entre las imágenes.<br>
+      <span style="opacity:0.6; font-size:0.9em;">Proyecto por rcavieresq</span>
+    </p>
+  </div>
+  <div id="toast"></div>
+
+  <script>
+    // ─────────────────────────────────────────────────────────────
+    // IMAGE POOLS & DYNAMIC ENGINE
+    // ─────────────────────────────────────────────────────────────
+    let verticalImages   = [];
+    let horizontalImages = [];
+    let poolAll          = []; 
+    const imageDims      = {};
+
+    let currentImages      = [];
+    let currentLayoutSplit = []; // Almacena cuántas fotos van en cada fila, ej: [4, 5]
+    let numSlots           = 4;
+    let autoPlaySeconds    = 10;
+    let autoPlayTimer      = null;
+
+    // ─────────────────────────────────────────────────────────────
+    // DOM REFS
+    // ─────────────────────────────────────────────────────────────
+    const stage        = document.getElementById('stage');
+    const canvas       = document.getElementById('canvas');
+    const lb           = document.getElementById('lightbox');
+    const lbImg        = document.getElementById('lightbox-img');
+    const btnT         = document.getElementById('btn-texto');
+    const btnD         = document.getElementById('btn-download');
+    const btnUpload    = document.getElementById('btn-upload');
+    const fileInput    = document.getElementById('file-input');
+    const emptyState   = document.getElementById('empty-state');
+    const emptyBtn     = document.getElementById('empty-upload-btn');
+    const tm           = document.getElementById('textmodal');
+    const toast        = document.getElementById('toast');
+    const uploadCount  = document.getElementById('upload-count');
+    
+    const configSlots  = document.getElementById('config-slots');
+    const configTime   = document.getElementById('config-time');
+
+    let busy         = false;
+    let lightboxOpen = false;
+    let textOpen     = false;
+
+    // ─────────────────────────────────────────────────────────────
+    // EVENTOS DE CONFIGURACIÓN
+    // ─────────────────────────────────────────────────────────────
+    configSlots.addEventListener('change', e => {
+      numSlots = parseInt(e.target.value);
+      if (verticalImages.length + horizontalImages.length > 0) {
+        showLayout();
+        startAutoPlay();
+      }
+    });
+
+    configTime.addEventListener('change', e => {
+      let val = parseInt(e.target.value);
+      if (isNaN(val) || val < 1) { val = 1; e.target.value = 1; }
+      autoPlaySeconds = val;
+      if (verticalImages.length + horizontalImages.length > 0) {
+        startAutoPlay(); 
+      }
+    });
+
+    // ─────────────────────────────────────────────────────────────
+    // TOAST
+    // ─────────────────────────────────────────────────────────────
+    let toastTimer;
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2800);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // UPLOAD
+    // ─────────────────────────────────────────────────────────────
+    function handleFiles(files) {
+      if (!files || files.length === 0) return;
+      let loaded = 0, addedV = 0, addedH = 0;
+      const total = files.length;
+
+      Array.from(files).forEach(file => {
+        if (!file.type.startsWith('image/')) { if (++loaded === total) onAllLoaded(addedV, addedH); return; }
+        const url   = URL.createObjectURL(file);
+        const probe = new Image();
+        probe.onload = () => {
+          const w = probe.naturalWidth, h = probe.naturalHeight;
+          imageDims[url] = { w, h };
+          if (w >= h) { if (!horizontalImages.includes(url)) { horizontalImages.push(url); addedH++; } }
+          else        { if (!verticalImages.includes(url))   { verticalImages.push(url);   addedV++; } }
+          if (++loaded === total) onAllLoaded(addedV, addedH);
+        };
+        probe.onerror = () => { if (++loaded === total) onAllLoaded(addedV, addedH); };
+        probe.src = url;
+      });
+    }
+
+    function onAllLoaded(addedV, addedH) {
+      updateUploadCount();
+      const allImages = [...verticalImages, ...horizontalImages];
+      poolAll = [...allImages]; 
+
+      if (allImages.length > 0) {
+        emptyState.classList.remove('visible');
+        stage.style.display = 'flex';
+        showLayout(true);
+        setTimeout(() => applySizes(currentImages), 0);
+        startAutoPlay();
+      }
+
+      const parts = [];
+      if (addedV > 0) parts.push(`${addedV} vertical${addedV > 1 ? 'es' : ''}`);
+      if (addedH > 0) parts.push(`${addedH} horizontal${addedH > 1 ? 'es' : ''}`);
+      showToast(parts.length > 0
+        ? `+${parts.join(', ')} añadida${addedV + addedH > 1 ? 's' : ''}`
+        : 'No se añadieron imágenes nuevas');
+      fileInput.value = '';
+    }
+
+    function updateUploadCount() {
+      const t = verticalImages.length + horizontalImages.length;
+      uploadCount.textContent = t > 0 ? ` (${t})` : '';
+    }
+
+    btnUpload.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+    emptyBtn.addEventListener('click',  e => { e.stopPropagation(); fileInput.click(); });
+    fileInput.addEventListener('change', e => handleFiles(e.target.files));
+    document.addEventListener('dragover', e => e.preventDefault());
+    document.addEventListener('drop', e => { e.preventDefault(); handleFiles(e.dataTransfer.files); });
+
+    // ─────────────────────────────────────────────────────────────
+    // ENGINE: MANEJO DEL MAZO MULTIPLE
+    // ─────────────────────────────────────────────────────────────
+    function pullSingleFromPool() {
+      const index = Math.floor(Math.random() * poolAll.length);
+      return poolAll.splice(index, 1)[0];
+    }
+
+    function pickImages(count) {
+      const allImages = [...verticalImages, ...horizontalImages];
+      if (allImages.length === 0) return null;
+
+      const actualCount = Math.min(count, allImages.length);
+
+      if (poolAll.length < actualCount) {
+        poolAll = [...allImages];
+        if (allImages.length > 0) showToast('Ciclo completo. Reiniciando mazo global.');
+      }
+
+      let result = [];
+      for (let i = 0; i < actualCount; i++) {
+        const url = pullSingleFromPool();
+        const type = imageDims[url].w >= imageDims[url].h ? 'h' : 'v';
+        result.push({ url, ...imageDims[url], type });
+      }
+      return result;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // SHOW LAYOUT (Distribución Dinámica)
+    // ─────────────────────────────────────────────────────────────
+    function showLayout(instant = false) {
+      if (busy && !instant) return;
+      const totalImages = verticalImages.length + horizontalImages.length;
+      if (totalImages === 0) return;
+
+      const picked = pickImages(numSlots);
+      if (!picked || picked.length === 0) return;
+
+      currentImages = picked;
+      
+      // Calcular la distribución de las filas
+      const count = picked.length;
+      if (count <= 3) {
+        currentLayoutSplit = [count];
+      } else {
+        let c1 = Math.floor(count / 2);
+        let c2 = Math.ceil(count / 2);
+        // Factor de aleatoriedad para números impares (invierte qué fila tiene la foto extra)
+        if (Math.random() > 0.5) {
+          const temp = c1; c1 = c2; c2 = temp;
+        }
+        currentLayoutSplit = [c1, c2];
+      }
+
+      if (instant) {
+        renderDOM(picked, false);
+        applySizes(picked);
+        return;
+      }
+
+      busy = true;
+      const currentDOMImgs = stage.querySelectorAll('img');
+      currentDOMImgs.forEach(img => img.classList.add('fading'));
+
+      setTimeout(() => {
+        renderDOM(picked, true);
+        const newDOMImgs = stage.querySelectorAll('img');
+        applySizes(picked);
+
+        let done = 0;
+        const check = () => {
+          if (++done >= picked.length) { 
+            newDOMImgs.forEach(img => img.classList.remove('fading')); 
+            busy = false; 
+          }
+        };
+        newDOMImgs.forEach(img => { img.onload = check; img.onerror = check; });
+        
+        setTimeout(() => { busy = false; newDOMImgs.forEach(img => img.classList.remove('fading')); }, 900);
+      }, 380);
+    }
+
+    function renderDOM(images, startsFaded) {
+      stage.innerHTML = '';
+      
+      if (currentLayoutSplit.length === 2) {
+        // Estructura de dos filas
+        stage.style.flexDirection = 'column';
+        
+        const row1 = document.createElement('div');
+        row1.style.display = 'flex'; row1.style.gap = '4px';
+        
+        const row2 = document.createElement('div');
+        row2.style.display = 'flex'; row2.style.gap = '4px';
+
+        images.forEach((imgData, i) => {
+          const slot = document.createElement('div');
+          slot.className = 'slot';
+          const img = document.createElement('img');
+          img.src = imgData.url;
+          if (startsFaded) img.className = 'fading';
+          slot.appendChild(img);
+          
+          if (i < currentLayoutSplit[0]) row1.appendChild(slot);
+          else row2.appendChild(slot);
+        });
+        
+        stage.appendChild(row1);
+        stage.appendChild(row2);
+      } else {
+        // Estructura de fila única (1 a 3 fotos)
+        stage.style.flexDirection = 'row';
+        images.forEach(imgData => {
+          const slot = document.createElement('div');
+          slot.className = 'slot';
+          const img = document.createElement('img');
+          img.src = imgData.url;
+          if (startsFaded) img.className = 'fading';
+          slot.appendChild(img);
+          stage.appendChild(slot);
+        });
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // AUTOMATIZACIÓN
+    // ─────────────────────────────────────────────────────────────
+    function startAutoPlay() {
+      stopAutoPlay();
+      autoPlayTimer = setInterval(() => {
+        if (!lightboxOpen && !textOpen) {
+          showLayout();
+        }
+      }, autoPlaySeconds * 1000); 
+    }
+
+    function stopAutoPlay() {
+      if (autoPlayTimer) clearInterval(autoPlayTimer);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // APPLY SIZES (Matemáticas Dinámicas Avanzadas)
+    // ─────────────────────────────────────────────────────────────
+    function applySizes(images) {
+      if (!images || images.length === 0) return;
+      const topbarH = 48;
+      const margin  = window.innerWidth * 0.05;
+      const maxW    = window.innerWidth  - margin * 2;
+      const maxH    = window.innerHeight - topbarH - margin * 2;
+      const gap     = 4;
+
+      if (currentLayoutSplit.length === 2) {
+        const c1 = currentLayoutSplit[0];
+        const c2 = currentLayoutSplit[1];
+
+        // Sumar ratios por fila
+        let R1 = 0;
+        for (let i = 0; i < c1; i++) R1 += images[i].w / images[i].h;
+        
+        let R2 = 0;
+        for (let i = c1; i < images.length; i++) R2 += images[i].w / images[i].h;
+
+        let W = maxW;
+        let H1 = (W - gap * (c1 - 1)) / R1;
+        let H2 = (W - gap * (c2 - 1)) / R2;
+        
+        // Si excede la pantalla, reescalar basado en la relación combinada de ambas filas
+        if ((H1 + H2 + gap) > maxH) {
+          W = (maxH - gap + gap * (c1 - 1) / R1 + gap * (c2 - 1) / R2) / (1 / R1 + 1 / R2);
+          H1 = (W - gap * (c1 - 1)) / R1;
+          H2 = (W - gap * (c2 - 1)) / R2;
+        }
+
+        stage.style.width  = W + 'px';
+        stage.style.height = (H1 + H2 + gap) + 'px';
+
+        const rows = stage.children;
+        if (rows.length === 2) {
+          const slots1 = rows[0].querySelectorAll('.slot');
+          slots1.forEach((slot, i) => {
+            const r = images[i].w / images[i].h;
+            slot.style.width = (H1 * r) + 'px';
+            slot.style.height = H1 + 'px';
+          });
+          const slots2 = rows[1].querySelectorAll('.slot');
+          slots2.forEach((slot, i) => {
+            const r = images[c1 + i].w / images[c1 + i].h;
+            slot.style.width = (H2 * r) + 'px';
+            slot.style.height = H2 + 'px';
+          });
+        }
+      } else {
+        let sumRatios = 0;
+        images.forEach(img => { sumRatios += (img.w / img.h); });
+
+        let H = (maxW - gap * (images.length - 1)) / sumRatios;
+        if (H > maxH) H = maxH;
+        const W = H * sumRatios + gap * (images.length - 1);
+
+        stage.style.width  = W + 'px';
+        stage.style.height = H + 'px';
+
+        const slots = stage.querySelectorAll('.slot');
+        slots.forEach((slot, i) => {
+          const ratio = images[i].w / images[i].h;
+          slot.style.width  = (H * ratio) + 'px';
+          slot.style.height = H + 'px';
+        });
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      if (stage.style.display !== 'none' && currentImages.length > 0) applySizes(currentImages);
+    });
+
+    // ─────────────────────────────────────────────────────────────
+    // INTERACCIÓN MANUAL Y MODALES
+    // ─────────────────────────────────────────────────────────────
+    canvas.addEventListener('click', e => {
+      if (lightboxOpen || textOpen) return;
+      if (e.target.tagName === 'IMG' && e.target !== lbImg) { openLB(e.target.src); return; }
+      showLayout();
+      startAutoPlay(); 
+    });
+
+    function openLB(src) { lightboxOpen = true; lbImg.src = src; lb.classList.add('open'); }
+    function closeLB()   { lb.classList.remove('open'); setTimeout(() => { lightboxOpen = false; startAutoPlay(); }, 280); }
+    lb.addEventListener('click', e => { if (e.target === lb) closeLB(); });
+
+    function openText()  { textOpen = true;  btnT.classList.add('active');    tm.classList.add('open'); }
+    function closeText() { textOpen = false; btnT.classList.remove('active'); tm.classList.remove('open'); startAutoPlay(); }
+    btnT.addEventListener('click', e => { e.stopPropagation(); textOpen ? closeText() : openText(); });
+    tm.addEventListener('click', e => { if (e.target === tm) closeText(); });
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { if (lightboxOpen) { closeLB(); return; } if (textOpen) { closeText(); return; } }
+      if (!lightboxOpen && !textOpen && (e.key === ' ' || e.key === 'ArrowRight')) {
+        showLayout();
+        startAutoPlay();
+      }
+    });
+
+    // ─────────────────────────────────────────────────────────────
+    // DOWNLOAD MULTI-CANVAS (Re-escalado dinámico NxN)
+    // ─────────────────────────────────────────────────────────────
+    btnD.addEventListener('click', e => {
+      e.stopPropagation();
+      if (!currentImages || currentImages.length === 0) return;
+      downloadLayout();
+    });
+
+    function downloadLayout() {
+      const border = 60;
+      const gap    = 8;
+      const scale  = 2;
+      const targetH = 1080;
+
+      let totalW_unscaled = 0;
+      let totalH_unscaled = 0;
+      let drawCmds = [];
+
+      if (currentLayoutSplit.length === 2) {
+        const c1 = currentLayoutSplit[0];
+        const c2 = currentLayoutSplit[1];
+
+        let R1 = 0;
+        for (let i = 0; i < c1; i++) R1 += currentImages[i].w / currentImages[i].h;
+        let R2 = 0;
+        for (let i = c1; i < currentImages.length; i++) R2 += currentImages[i].w / currentImages[i].h;
+
+        const targetH_net = targetH - gap;
+        const W_net = (targetH_net + gap * (c1 - 1) / R1 + gap * (c2 - 1) / R2) / (1 / R1 + 1 / R2);
+        
+        const H1 = (W_net - gap * (c1 - 1)) / R1;
+        const H2 = (W_net - gap * (c2 - 1)) / R2;
+
+        totalW_unscaled = border * 2 + W_net;
+        totalH_unscaled = border * 2 + targetH;
+
+        let currentX = border;
+        // Dibujar Fila 1
+        for (let i = 0; i < c1; i++) {
+          const r = currentImages[i].w / currentImages[i].h;
+          drawCmds.push({ src: currentImages[i].url, x: currentX, y: border, w: H1 * r, h: H1 });
+          currentX += (H1 * r) + gap;
+        }
+        
+        currentX = border;
+        // Dibujar Fila 2
+        for (let i = c1; i < currentImages.length; i++) {
+          const r = currentImages[i].w / currentImages[i].h;
+          drawCmds.push({ src: currentImages[i].url, x: currentX, y: border + H1 + gap, w: H2 * r, h: H2 });
+          currentX += (H2 * r) + gap;
+        }
+
+      } else {
+        totalW_unscaled = border * 2 + gap * (currentImages.length - 1);
+        totalH_unscaled = targetH + border * 2;
+        let currentX = border;
+        
+        drawCmds = currentImages.map(img => {
+          const w = targetH * img.w / img.h;
+          const cmd = { src: img.url, x: currentX, y: border, w: w, h: targetH };
+          currentX += w + gap;
+          totalW_unscaled += w;
+          return cmd;
+        });
+      }
+
+      const totalW = Math.round(totalW_unscaled * scale);
+      const totalH = Math.round(totalH_unscaled * scale);
+
+      const off = document.createElement('canvas');
+      off.width = totalW; off.height = totalH;
+      const ctx = off.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, totalW, totalH);
+
+      const loadImg = src => new Promise((res, rej) => {
+        const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src;
+      });
+
+      btnD.textContent = '…';
+
+      Promise.all(drawCmds.map(cmd => loadImg(cmd.src)))
+        .then(images => {
+          images.forEach((imgElement, i) => {
+            const c = drawCmds[i];
+            ctx.drawImage(imgElement, c.x * scale, c.y * scale, c.w * scale, c.h * scale);
+          });
+          off.toBlob(blob => {
+            const url = URL.createObjectURL(blob);
+            const a   = document.createElement('a');
+            a.href = url; a.download = 'multi-layout-' + Date.now() + '.png';
+            a.click(); URL.revokeObjectURL(url);
+            btnD.textContent = '↓';
+          }, 'image/png');
+        })
+        .catch(() => { btnD.textContent = '↓'; showToast('Error al generar la imagen'); });
+    }
+  </script>
+</body>
+</html>
