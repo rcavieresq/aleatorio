@@ -259,6 +259,35 @@
       padding: 0 var(--margin);
     }
     #upload-count { font-size: 11px; opacity: 0.35; margin-left: 2px; }
+    /* ── CONTEXT MENU ── */
+    #context-menu {
+      display: none;
+      position: fixed;
+      z-index: 10000;
+      width: 210px;
+      background: #fff;
+      border: 1px solid #eee;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.10);
+      padding: 5px;
+    }
+    
+    #context-menu button {
+      width: 100%;
+      padding: 11px 12px;
+      border: none;
+      background: transparent;
+      text-align: left;
+      font-family: inherit;
+      font-size: 13px;
+      color: #111;
+      cursor: pointer;
+    }
+    
+    #context-menu button:hover {
+      background: #f5f5f5;
+      color: var(--accent);
+    }
+    
   </style>
 </head>
 <body>
@@ -509,6 +538,7 @@
       if (instant) {
         renderDOM(picked, false);
         applySizes(picked);
+        syncPictureInPicture();
         return;
       }
 
@@ -520,6 +550,7 @@
         renderDOM(picked, true);
         const newDOMImgs = stage.querySelectorAll('img');
         applySizes(picked);
+        syncPictureInPicture();
 
         let done = 0;
         const check = () => {
@@ -792,6 +823,332 @@
         })
         .catch(() => { btnD.textContent = '↓'; showToast('Error al generar la imagen'); });
     }
+    // ─────────────────────────────────────────────
+// PICTURE IN PICTURE - MULTI
+// ─────────────────────────────────────────────
+
+let pipWindow = null;
+let pipStage = null;
+
+const contextMenu = document.getElementById('context-menu');
+const pipOption = document.getElementById('pip-option');
+
+// ── MENÚ CONTEXTUAL ──
+
+document.addEventListener('contextmenu', e => {
+  e.preventDefault();
+
+  contextMenu.style.display = 'block';
+
+  let x = e.clientX;
+  let y = e.clientY;
+
+  if (x + 210 > window.innerWidth) x -= 210;
+  if (y + 45 > window.innerHeight) y -= 45;
+
+  contextMenu.style.left = x + 'px';
+  contextMenu.style.top = y + 'px';
+});
+
+document.addEventListener('click', e => {
+  if (!contextMenu.contains(e.target)) {
+    contextMenu.style.display = 'none';
+  }
+});
+
+// ── ABRIR VENTANA FLOTANTE ──
+
+pipOption.addEventListener('click', async () => {
+
+  contextMenu.style.display = 'none';
+
+  if (!('documentPictureInPicture' in window)) {
+    showToast('Tu navegador no admite Picture-in-Picture');
+    return;
+  }
+
+  if (currentImages.length === 0) {
+    showToast('Primero debes subir imágenes');
+    return;
+  }
+
+  try {
+
+    if (pipWindow) {
+      pipWindow.focus();
+      return;
+    }
+
+    pipWindow = await documentPictureInPicture.requestWindow({
+      width: 900,
+      height: 650
+    });
+
+    const doc = pipWindow.document;
+
+    doc.documentElement.style.height = '100%';
+
+    doc.body.style.cssText = `
+      margin: 0;
+      padding: 12px;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+      background: #fff;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+
+    const style = doc.createElement('style');
+
+    style.textContent = `
+      * {
+        box-sizing: border-box;
+      }
+
+      #pip-stage {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        max-width: 100%;
+        max-height: 100%;
+      }
+
+      .pip-row {
+        display: flex;
+        gap: 4px;
+        justify-content: center;
+      }
+
+      .pip-slot {
+        flex: none;
+        overflow: hidden;
+        background: #eee;
+      }
+
+      .pip-slot img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: opacity 0.4s ease;
+      }
+
+      .pip-slot img.fading {
+        opacity: 0;
+      }
+    `;
+
+    doc.head.appendChild(style);
+
+    pipStage = doc.createElement('div');
+    pipStage.id = 'pip-stage';
+
+    doc.body.appendChild(pipStage);
+
+    pipWindow.addEventListener('pagehide', () => {
+      pipWindow = null;
+      pipStage = null;
+    });
+
+    syncPictureInPicture();
+
+  } catch (error) {
+    console.error(error);
+    pipWindow = null;
+    pipStage = null;
+    showToast('No se pudo abrir la ventana flotante');
+  }
+});
+
+// ── ACTUALIZAR COMPOSICIÓN ──
+
+function syncPictureInPicture() {
+
+  if (!pipWindow || !pipStage) return;
+
+  const doc = pipWindow.document;
+
+  // Reproducir la misma distribución de la página principal
+  pipStage.innerHTML = '';
+
+  const split = currentLayoutSplit;
+
+  if (!currentImages.length) return;
+
+  if (split.length === 2) {
+
+    const row1 = doc.createElement('div');
+    const row2 = doc.createElement('div');
+
+    row1.className = 'pip-row';
+    row2.className = 'pip-row';
+
+    currentImages.forEach((data, i) => {
+
+      const slot = createPipSlot(data);
+
+      if (i < split[0]) {
+        row1.appendChild(slot);
+      } else {
+        row2.appendChild(slot);
+      }
+
+    });
+
+    pipStage.appendChild(row1);
+    pipStage.appendChild(row2);
+
+  } else {
+
+    const row = doc.createElement('div');
+    row.className = 'pip-row';
+
+    currentImages.forEach(data => {
+      row.appendChild(createPipSlot(data));
+    });
+
+    pipStage.appendChild(row);
+  }
+
+  resizePipStage();
+}
+
+// ── CREAR SLOT ──
+
+function createPipSlot(data) {
+
+  const doc = pipWindow.document;
+
+  const slot = doc.createElement('div');
+  slot.className = 'pip-slot';
+
+  const img = doc.createElement('img');
+  img.src = data.url;
+  img.alt = '';
+
+  slot.appendChild(img);
+
+  return slot;
+}
+
+  // ── DIMENSIONAR COMPOSICIÓN ──
+  
+  function resizePipStage() {
+  
+    if (!pipWindow || !pipStage || !currentImages.length) return;
+  
+    const winW = pipWindow.innerWidth - 24;
+    const winH = pipWindow.innerHeight - 24;
+    const gap = 4;
+  
+    const split = currentLayoutSplit;
+  
+    let layoutW = 0;
+    let layoutH = 0;
+    let rowHeights = [];
+  
+    if (split.length === 2) {
+  
+      const c1 = split[0];
+      const c2 = split[1];
+  
+      let R1 = 0;
+      let R2 = 0;
+  
+      for (let i = 0; i < c1; i++) {
+        R1 += currentImages[i].w / currentImages[i].h;
+      }
+  
+      for (let i = c1; i < currentImages.length; i++) {
+        R2 += currentImages[i].w / currentImages[i].h;
+      }
+  
+      const ratio1 = R1;
+      const ratio2 = R2;
+  
+      let W = winW;
+  
+      let H1 = (W - gap * (c1 - 1)) / ratio1;
+      let H2 = (W - gap * (c2 - 1)) / ratio2;
+  
+      if (H1 + H2 + gap > winH) {
+  
+        W = (winH - gap +
+          gap * (c1 - 1) / ratio1 +
+          gap * (c2 - 1) / ratio2) /
+          (1 / ratio1 + 1 / ratio2);
+  
+        H1 = (W - gap * (c1 - 1)) / ratio1;
+        H2 = (W - gap * (c2 - 1)) / ratio2;
+      }
+  
+      layoutW = W;
+      layoutH = H1 + H2 + gap;
+  
+      rowHeights = [H1, H2];
+  
+      const rows = pipStage.children;
+  
+      [0, 1].forEach(r => {
+  
+        const row = rows[r];
+        const start = r === 0 ? 0 : c1;
+  
+        Array.from(row.children).forEach((slot, i) => {
+  
+          const data = currentImages[start + i];
+          const ratio = data.w / data.h;
+  
+          slot.style.width = (rowHeights[r] * ratio) + 'px';
+          slot.style.height = rowHeights[r] + 'px';
+  
+        });
+  
+      });
+  
+    } else {
+  
+      const sumRatios = currentImages.reduce(
+        (sum, img) => sum + img.w / img.h, 0
+      );
+  
+      let H = (winW - gap * (currentImages.length - 1)) / sumRatios;
+  
+      if (H > winH) H = winH;
+  
+      layoutH = H;
+      layoutW = H * sumRatios + gap * (currentImages.length - 1);
+  
+      const row = pipStage.firstElementChild;
+  
+      Array.from(row.children).forEach((slot, i) => {
+  
+        const data = currentImages[i];
+        const ratio = data.w / data.h;
+  
+        slot.style.width = (H * ratio) + 'px';
+        slot.style.height = H + 'px';
+  
+      });
+    }
+  
+    pipStage.style.width = layoutW + 'px';
+    pipStage.style.height = layoutH + 'px';
+  }
+  
+  // ── REDIMENSIONAR AL CAMBIAR VENTANA ──
+  
+  window.addEventListener('resize', () => {
+    resizePipStage();
+  });
   </script>
+  <div id="context-menu">
+     <button id="pip-option">▣ Pantalla en pantalla</button>
+  </div>
 </body>
 </html>
