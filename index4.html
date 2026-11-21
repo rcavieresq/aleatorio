@@ -343,7 +343,9 @@
 
     <div id="stage" style="display:none"></div>
   </div>
-
+  <div id="context-menu">
+     <button id="pip-option">▣ Pantalla en pantalla</button>
+  </div>
   <div id="lightbox"><img id="lightbox-img" src="" alt="" /></div>
   <div id="textmodal">
     <p id="textmodal-content">
@@ -836,6 +838,7 @@ const pipOption = document.getElementById('pip-option');
 // ── MENÚ CONTEXTUAL ──
 
 document.addEventListener('contextmenu', e => {
+  if (!contextMenu) return;
   e.preventDefault();
 
   contextMenu.style.display = 'block';
@@ -883,7 +886,7 @@ pipOption.addEventListener('click', async () => {
       width: 900,
       height: 650
     });
-
+    pipWindow.addEventListener('resize', resizePipStage);
     const doc = pipWindow.document;
 
     doc.documentElement.style.height = '100%';
@@ -1147,8 +1150,5 @@ function createPipSlot(data) {
     resizePipStage();
   });
   </script>
-  <div id="context-menu">
-     <button id="pip-option">▣ Pantalla en pantalla</button>
-  </div>
 </body>
 </html>
